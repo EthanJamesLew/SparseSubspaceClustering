@@ -11,16 +11,45 @@ from scipy.sparse.linalg import svds
 from scipy.sparse import csc_matrix
 from numpy.random import uniform
 from numpy import argmin, argsort, array, diag, dot, squeeze, where, zeros
-from pca import pca
+from .pca import pca
 
-def ekss (X, k, r, maxIter):
+from multiprocessing import Pool
+
+def ekss (X, k, r, B, maxIter):
     '''
     Ensemble K-Subspaces
+    Input: X data (D dim x N observations), k clusters, r subspace rank, maxIter
+    iterations, B base clusters
+    Output: Y (N labels of K subspaces)
+    '''
+    # Parallel process the clusters
+    cluster_pool = Pool(processes=8)
+    cluster_args = [(X, k, r, maxIter) for i in range(B)]
+    #Cb = [cluster_pool.apply(ensemble_clusters, args=(X,k,r,maxIter))]
+    Cb = cluster_pool.map(ensemble_helper, cluster_args)
+    print(len(Cb))
+    A = build_affinity(Cb, k, B)
+
+def build_affinity(Cb, k, B):
+    '''
+    Build an Affinity Matrix
+    Input: Cb list of dictionary of clusters, k clusters, B base clusters
+    Output: A affinity matrix
+    '''
+    for b in range(0, B):
+        print(Cb[b])
+        pass
+
+def ensemble_helper(args):
+	return ensemble_clusters(*args)
+
+def ensemble_clusters(X, k, r, maxIter):
+    '''
+    K projection clusters
     Input: X data (D dim x N observations), k clusters, r subspace rank, maxIter
     iterations
     Output: Y (N labels of K subspaces)
     '''
-    #TODO: Make this into an interator?
     # Get dimensions
     D, N = X.shape;
     # Draw K random subspace bases
@@ -31,7 +60,8 @@ def ekss (X, k, r, maxIter):
     for ii in range(0, maxIter):
         U = pca_bases(C, k, r);
         C = cluster_proj(U, X, k);
-    # Cluster by nearest subspace
+    return C
+
 
 def unif_bases(D, k, r):
     '''
@@ -50,7 +80,8 @@ def pca_bases(C, k, d):
     Outputs: U iterator with bases estimated via PCA
     '''
     for ii in range(0, k):
-        yield pca(X, k)
+        #print(C[ii].shape)
+        yield pca(C[ii], d)
 
 
 def cluster_proj(U, X, k):
@@ -93,4 +124,4 @@ def cluster_nss(U, X, k):
 
 if __name__ == "__main__":
     X= uniform(20, -20, (5, 10));
-    ekss(X, 3, 2, 100);
+    ekss(X, 3, 2, 5, 100);
